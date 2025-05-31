@@ -92,8 +92,8 @@ def check_product(playwright, product):
 
 def run():
     now = datetime.utcnow()
-    if now.hour == 7 and now.minute < 15:
-        send_telegram("🕵️‍♂️ Labubu Stock Checker is running (daily check-in at 7AM UTC)...")
+    if now.hour == 6 and now.minute < 15:
+        send_telegram("🕵️‍♂️ Labubu Stock Checker is running (daily check-in at 7AM BST)...")
 
     with sync_playwright() as playwright:
         for product in PRODUCTS:
