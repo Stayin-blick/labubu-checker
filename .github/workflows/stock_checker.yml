@@ -42,5 +42,5 @@ jobs:
           path: check_count.txt
           key: check-count-${{ github.run_id }}
 
-      - name: Update latest cache reference (optional but helpful)
-        run: echo "Updated cache key: check-count-${{ github.run_id }}"
+      - name: Echo updated cache key (debug info)
+        run: echo "✅ Updated cache key: check-count-${{ github.run_id }}"
