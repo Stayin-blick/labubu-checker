@@ -1,6 +1,7 @@
 from playwright.sync_api import sync_playwright
 import os
 import requests
+import time
 from datetime import datetime
 
 # List of products to track
@@ -57,7 +58,7 @@ def send_telegram(message):
         print(f"Telegram error: {e}")
 
 def is_available(page_text: str) -> bool:
-    """Determine if product is in stock based on known 'sold out' phrases"""
+    """Check if product is available based on known 'sold out' phrases"""
     unavailable_phrases = [
         "Notify me when available",
         "Sorry, the product is currently unavailable for purchase",
@@ -70,14 +71,10 @@ def is_available(page_text: str) -> bool:
     text = page_text.lower()
     return not any(phrase.lower() in text for phrase in unavailable_phrases)
 
-def check_product(playwright, product):
+def check_product(page, product):
     """Open product page and check for availability"""
-    browser = playwright.chromium.launch(headless=True)
-    context = browser.new_context()
-    page = context.new_page()
-
     try:
-        print(f"Checking: {product['name']}")
+        print(f"🔍 Checking: {product['name']}")
         page.goto(product["url"], timeout=30000, wait_until="networkidle")
         page_text = page.content()
 
@@ -87,8 +84,6 @@ def check_product(playwright, product):
             print(f"❌ {product['name']} is still sold out.")
     except Exception as e:
         send_telegram(f"⚠️ Error checking *{product['name']}*: {e}")
-    finally:
-        browser.close()
 
 def run():
     now = datetime.utcnow()
@@ -96,8 +91,15 @@ def run():
         send_telegram("🕵️‍♂️ Labubu Stock Checker is running (daily check-in at 7AM BST)...")
 
     with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        context = browser.new_context()
+        page = context.new_page()
+
         for product in PRODUCTS:
-            check_product(playwright, product)
+            check_product(page, product)
+            time.sleep(2)  # brief delay to reduce detection risk
+
+        browser.close()
 
 if __name__ == "__main__":
     run()
