@@ -19,11 +19,13 @@ jobs:
           python-version: '3.x'
 
       - name: Restore check count cache
-        id: cache-check
+        id: restore-cache
         uses: actions/cache@v3
         with:
           path: check_count.txt
-          key: check-count
+          key: check-count-latest
+          restore-keys: |
+            check-count-
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -34,8 +36,11 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python labubu_checker.py
 
-      - name: Save updated check count to cache
+      - name: Save updated check count to new cache
         uses: actions/cache@v3
         with:
           path: check_count.txt
           key: check-count-${{ github.run_id }}
+
+      - name: Update latest cache reference (optional but helpful)
+        run: echo "Updated cache key: check-count-${{ github.run_id }}"
