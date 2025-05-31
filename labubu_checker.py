@@ -101,6 +101,7 @@ def check_product(playwright, product):
             send_telegram(f"🧸 *{product['name']}* is available!\n💷 [Buy here]({product['url']})")
         else:
             print(f"❌ {product['name']} is still sold out.")
+            send_telegram(f"❌ *{product['name']}* is still sold out.")  # <-- Added here
     except Exception as e:
         print(f"❗️Error checking {product['name']}: {e}")
         send_telegram(f"⚠️ Error checking *{product['name']}*: {e}")
