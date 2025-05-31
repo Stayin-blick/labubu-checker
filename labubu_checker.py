@@ -1,7 +1,7 @@
 import os
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # List of products to track
 PRODUCTS = [
@@ -43,9 +43,6 @@ PRODUCTS = [
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
-# File to track how many times we've checked
-CHECK_COUNT_FILE = "check_count.txt"
-
 def send_telegram(message):
     """Send a message to Telegram"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -59,23 +56,16 @@ def send_telegram(message):
     except requests.exceptions.RequestException as e:
         print(f"Error sending Telegram message: {e}")
 
-def load_check_count():
-    if os.path.exists(CHECK_COUNT_FILE):
-        with open(CHECK_COUNT_FILE, "r") as f:
-            return int(f.read().strip())
-    return 0
-
-def save_check_count(count):
-    with open(CHECK_COUNT_FILE, "w") as f:
-        f.write(str(count))
-
 def is_available(page_text: str) -> bool:
     """Check if item is available based on common 'out of stock' phrases"""
     unavailable_phrases = [
         "Notify me when available",
         "Sorry, the product is currently unavailable for purchase",
         "Out of stock",
-        "Currently unavailable"
+        "Currently unavailable",
+        "Sold out",
+        "Temporarily out of stock",
+        "Find Similar",
     ]
     text = page_text.lower()
     return not any(phrase.lower() in text for phrase in unavailable_phrases)
@@ -93,22 +83,9 @@ def check_product(product):
 
 def run_checks():
     now = datetime.utcnow()
-    
-    # Load & increment check count
-    count = load_check_count()
-    count += 1
-    save_check_count(count)
-
-    # Daily 7AM UTC check-in message
     if now.hour == 7 and now.minute < 15:
         send_telegram("🕵️‍♂️ Labubu Stock Checker is running (daily check-in at 7AM UTC)...")
 
-    # Send periodic status every 12 checks (~hourly if running every 5 min)
-    if count % 12 == 0:
-        next_check = now + timedelta(minutes=5)
-        send_telegram(f"⏳ Still checking! Total checks so far: *{count}*\n🕐 Next check at: {next_check.strftime('%H:%M:%S UTC')}")
-
-    # Check all products
     for product in PRODUCTS:
         check_product(product)
 
