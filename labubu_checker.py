@@ -1,9 +1,9 @@
 import os
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timedelta
 
-# Define the product URLs you want to check
+# List of products to track
 PRODUCTS = [
     {
         "name": "Aliexpress UK Have a Seat",
@@ -39,67 +39,76 @@ PRODUCTS = [
     },
 ]
 
+# Telegram configuration
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
+# File to track how many times we've checked
+CHECK_COUNT_FILE = "check_count.txt"
+
 def send_telegram(message):
+    """Send a message to Telegram"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
         "parse_mode": "Markdown"
     }
-    requests.post(url, data=data)
+    try:
+        requests.post(url, data=data, timeout=10)
+    except requests.exceptions.RequestException as e:
+        print(f"Error sending Telegram message: {e}")
 
-def is_available(product_name: str, html: str) -> bool:
-    soup = BeautifulSoup(html, 'html.parser')
-    text = soup.get_text(separator=' ', strip=True).lower()
+def load_check_count():
+    if os.path.exists(CHECK_COUNT_FILE):
+        with open(CHECK_COUNT_FILE, "r") as f:
+            return int(f.read().strip())
+    return 0
 
-    # Generic out-of-stock phrases
+def save_check_count(count):
+    with open(CHECK_COUNT_FILE, "w") as f:
+        f.write(str(count))
+
+def is_available(page_text: str) -> bool:
+    """Check if item is available based on common 'out of stock' phrases"""
     unavailable_phrases = [
-        "notify me when available",
-        "sorry, the product is currently unavailable for purchase",
-        "currently unavailable",
-        "out of stock"
+        "Notify me when available",
+        "Sorry, the product is currently unavailable for purchase",
+        "Out of stock",
+        "Currently unavailable"
     ]
-
-    # Check for phrases first
-    if any(phrase in text for phrase in unavailable_phrases):
-        return False
-
-    # Site-specific button or status logic
-    if "aliexpress" in product_name.lower():
-        # AliExpress: look for "Add to Cart" button or availability label
-        return "add to cart" in text or "buy now" in text
-
-    elif "popmart" in product_name.lower():
-        # Pop Mart: look for "Add to Cart" or lack of "Notify me"
-        return "add to cart" in text and "notify me" not in text
-
-    # Default to False if uncertain
-    return False
+    text = page_text.lower()
+    return not any(phrase.lower() in text for phrase in unavailable_phrases)
 
 def check_product(product):
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0"
-        }
-        response = requests.get(product["url"], headers=headers, timeout=10)
+        response = requests.get(product["url"], timeout=10)
         response.raise_for_status()
-
-        if is_available(product['name'], response.text):
-            send_telegram(f"🧸 *{product['name']}* is available!\n💷 Check it out: {product['url']}")
-        else:
-            print(f"❌ Not available: {product['name']}")
+        soup = BeautifulSoup(response.text, "html.parser")
+        text = soup.get_text()
+        if is_available(text):
+            send_telegram(f"🧸 *{product['name']}* is available!\n💷 [Buy here]({product['url']})")
     except Exception as e:
-        send_telegram(f"⚠️ Error checking {product['name']}: {e}")
+        send_telegram(f"⚠️ Error checking *{product['name']}*: {e}")
 
 def run_checks():
-    # Send the "is running" message once daily at 7:00 AM BST (6:00 UTC)
     now = datetime.utcnow()
-    if now.hour == 6 and now.minute < 15:
-        send_telegram("🕵️‍♂️ Labubu Stock Checker is running...")
+    
+    # Load & increment check count
+    count = load_check_count()
+    count += 1
+    save_check_count(count)
 
+    # Daily 7AM UTC check-in message
+    if now.hour == 7 and now.minute < 15:
+        send_telegram("🕵️‍♂️ Labubu Stock Checker is running (daily check-in at 7AM UTC)...")
+
+    # Send periodic status every 12 checks (~hourly if running every 5 min)
+    if count % 12 == 0:
+        next_check = now + timedelta(minutes=5)
+        send_telegram(f"⏳ Still checking! Total checks so far: *{count}*\n🕐 Next check at: {next_check.strftime('%H:%M:%S UTC')}")
+
+    # Check all products
     for product in PRODUCTS:
         check_product(product)
 
