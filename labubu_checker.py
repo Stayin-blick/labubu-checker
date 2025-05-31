@@ -6,23 +6,23 @@ import time
 PRODUCTS = [
     {
         "name": "Aliexpress UK Have a Seat",
-        "url": "https://www.aliexpress.com/item/1005007966773739.html?srcSns=sns_Copy&sourceType=1&spreadType=socialShare&bizType=ProductDetail&social_params=61114524894&aff_fcid=c044fe1cf0a844b0a8299cfef651abdd-1748677413314-04002-_EwHudxU&tt=MG&aff_fsk=_EwHudxU&aff_platform=default&sk=_EwHudxU&aff_trace_key=c044fe1cf0a844b0a8299cfef651abdd-1748677413314-04002-_EwHudxU&shareId=61114524894&businessType=ProductDetail&platform=AE&terminal_id=24e542db40a34d0da57362870af2d154&afSmartRedirect=y"
+        "url": "https://www.aliexpress.com/item/1005007966773739.html"
     },
     {
         "name": "Aliexpress UK Macaron",
-        "url": "https://www.aliexpress.com/item/1005007966229736.html?srcSns=sns_Copy&sourceType=1&spreadType=socialShare&bizType=ProductDetail&social_params=61114524965&aff_fcid=8d16cab76a044210b988b5e0d5ae052a-1748677439908-00843-_EzVOUR0&tt=MG&aff_fsk=_EzVOUR0&aff_platform=default&sk=_EzVOUR0&aff_trace_key=8d16cab76a044210b988b5e0d5ae052a-1748677439908-00843-_EzVOUR0&shareId=61114524965&businessType=ProductDetail&platform=AE&terminal_id=24e542db40a34d0da57362870af2d154&afSmartRedirect=y"
+        "url": "https://www.aliexpress.com/item/1005007966229736.html"
     },
     {
         "name": "Aliexpress EU Macaron",
-        "url": "https://www.aliexpress.com/item/1005008117007093.html?srcSns=sns_Copy&sourceType=1&spreadType=socialShare&bizType=ProductDetail&social_params=61121514970&aff_fcid=9406f5db448544f98fa5348ae37ffee8-1748677465791-06925-_EjGj1Q2&tt=MG&aff_fsk=_EjGj1Q2&aff_platform=default&sk=_EjGj1Q2&aff_trace_key=9406f5db448544f98fa5348ae37ffee8-1748677465791-06925-_EjGj1Q2&shareId=61121514970&businessType=ProductDetail&platform=AE&terminal_id=24e542db40a34d0da57362870af2d154&afSmartRedirect=y"
+        "url": "https://www.aliexpress.com/item/1005008117007093.html"
     },
     {
         "name": "Aliexpress EU Big into Energy",
-        "url": "https://www.aliexpress.com/item/1005008886096545.html?srcSns=sns_Copy&sourceType=1&spreadType=socialShare&bizType=ProductDetail&social_params=61114526438&aff_fcid=7fe148e119b842f5bb68a5c3b16e4e88-1748677486289-01305-_EHppBho&tt=MG&aff_fsk=_EHppBho&aff_platform=default&sk=_EHppBho&aff_trace_key=7fe148e119b842f5bb68a5c3b16e4e88-1748677486289-01305-_EHppBho&shareId=61114526438&businessType=ProductDetail&platform=AE&terminal_id=24e542db40a34d0da57362870af2d154&afSmartRedirect=y"
+        "url": "https://www.aliexpress.com/item/1005008886096545.html"
     },
     {
         "name": "Aliexpress Exciting Macaron",
-        "url": "https://www.aliexpress.com/item/1005006169948468.html?srcSns=sns_Copy&sourceType=1&spreadType=socialShare&bizType=ProductDetail&social_params=61114526499&aff_fcid=4fa4c8da32f64c09800cd0081053e28f-1748677501907-05677-_ExrMoN8&tt=MG&aff_fsk=_ExrMoN8&aff_platform=default&sk=_ExrMoN8&aff_trace_key=4fa4c8da32f64c09800cd0081053e28f-1748677501907-05677-_ExrMoN8&shareId=61114526499&businessType=ProductDetail&platform=AE&terminal_id=24e542db40a34d0da57362870af2d154&afSmartRedirect=y"
+        "url": "https://www.aliexpress.com/item/1005006169948468.html"
     },
     {
         "name": "PopMart Have a Seat Plush",
@@ -55,7 +55,17 @@ def send_telegram(message):
     except Exception as e:
         print(f"⚠️ Error sending Telegram message: {e}")
 
-def is_available(page_text: str) -> bool:
+def is_available(page_text: str, url: str) -> bool:
+    text = page_text.lower()
+
+    if "popmart.com" in url:
+        if "notify me when available" in text or "notify me when in stock" in text:
+            return False
+        if "add to cart" in text or "buy now" in text:
+            return True
+        return False
+
+    # AliExpress and others
     unavailable_phrases = [
         "notify me when available",
         "sorry, the product is currently unavailable for purchase",
@@ -65,9 +75,7 @@ def is_available(page_text: str) -> bool:
         "temporarily out of stock",
         "find similar",
     ]
-    text = page_text.lower()
 
-    # Ensure some sign of a real product page before checking stock
     if "add to cart" not in text and "buy now" not in text and "add to basket" not in text:
         return False
 
@@ -85,10 +93,10 @@ def check_product(playwright, product):
     try:
         print(f"🔍 Checking: {product['name']}")
         page.goto(product["url"], wait_until="domcontentloaded", timeout=30000)
-        time.sleep(20)  # Allow JS to settle
+        time.sleep(20)  # Give JS time to settle
 
         page_text = page.content()
-        if is_available(page_text):
+        if is_available(page_text, product["url"]):
             print(f"✅ {product['name']} is in stock.")
             send_telegram(f"🧸 *{product['name']}* is available!\n💷 [Buy here]({product['url']})")
         else:
