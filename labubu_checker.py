@@ -1,6 +1,6 @@
+from playwright.sync_api import sync_playwright
 import os
 import requests
-from bs4 import BeautifulSoup
 from datetime import datetime
 
 # List of products to track
@@ -39,12 +39,12 @@ PRODUCTS = [
     },
 ]
 
-# Telegram configuration
-TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
-TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
+# Telegram credentials from environment variables
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 def send_telegram(message):
-    """Send a message to Telegram"""
+    """Send a message to a Telegram chat"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
@@ -54,10 +54,10 @@ def send_telegram(message):
     try:
         requests.post(url, data=data, timeout=10)
     except requests.exceptions.RequestException as e:
-        print(f"Error sending Telegram message: {e}")
+        print(f"Telegram error: {e}")
 
 def is_available(page_text: str) -> bool:
-    """Check if item is available based on common 'out of stock' phrases"""
+    """Determine if product is in stock based on known 'sold out' phrases"""
     unavailable_phrases = [
         "Notify me when available",
         "Sorry, the product is currently unavailable for purchase",
@@ -70,24 +70,34 @@ def is_available(page_text: str) -> bool:
     text = page_text.lower()
     return not any(phrase.lower() in text for phrase in unavailable_phrases)
 
-def check_product(product):
+def check_product(playwright, product):
+    """Open product page and check for availability"""
+    browser = playwright.chromium.launch(headless=True)
+    context = browser.new_context()
+    page = context.new_page()
+
     try:
-        response = requests.get(product["url"], timeout=10)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-        text = soup.get_text()
-        if is_available(text):
+        print(f"Checking: {product['name']}")
+        page.goto(product["url"], timeout=30000, wait_until="networkidle")
+        page_text = page.content()
+
+        if is_available(page_text):
             send_telegram(f"🧸 *{product['name']}* is available!\n💷 [Buy here]({product['url']})")
+        else:
+            print(f"❌ {product['name']} is still sold out.")
     except Exception as e:
         send_telegram(f"⚠️ Error checking *{product['name']}*: {e}")
+    finally:
+        browser.close()
 
-def run_checks():
+def run():
     now = datetime.utcnow()
     if now.hour == 7 and now.minute < 15:
         send_telegram("🕵️‍♂️ Labubu Stock Checker is running (daily check-in at 7AM UTC)...")
 
-    for product in PRODUCTS:
-        check_product(product)
+    with sync_playwright() as playwright:
+        for product in PRODUCTS:
+            check_product(playwright, product)
 
 if __name__ == "__main__":
-    run_checks()
+    run()
