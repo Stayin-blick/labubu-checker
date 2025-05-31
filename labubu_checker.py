@@ -84,8 +84,8 @@ def check_product(playwright, product):
 
     try:
         print(f"🔍 Checking: {product['name']}")
-        page.goto(product["url"], wait_until="networkidle", timeout=30000)
-        time.sleep(3)  # Allow JS to settle
+        page.goto(product["url"], wait_until="load", timeout=30000)
+        time.sleep(20)  # Allow JS to settle
 
         page_text = page.content()
         if is_available(page_text):
